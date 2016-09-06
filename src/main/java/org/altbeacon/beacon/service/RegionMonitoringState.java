@@ -51,7 +51,7 @@ public class RegionMonitoringState implements Serializable {
             inside = true;
             return true;
         }
-        return false;
+        return true;
     }
 
     public boolean markOutsideIfExpired() {

@@ -24,8 +24,8 @@ package org.altbeacon.beacon.logging;
  * @since 2.2
  */
 public final class LogManager {
-    private static Logger sLogger = Loggers.warningLogger();
-    private static boolean sVerboseLoggingEnabled = false;
+    private static Logger sLogger = Loggers.verboseLogger();
+    private static boolean sVerboseLoggingEnabled = true;
 
     /**
      * Set the logger that the Altbeacon library will use to send it's log messages to.

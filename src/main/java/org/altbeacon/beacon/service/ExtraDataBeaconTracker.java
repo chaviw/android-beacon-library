@@ -29,16 +29,16 @@ public class ExtraDataBeaconTracker {
      * @param beacon
      * @return
      */
-    public synchronized Beacon track(Beacon beacon) {
-        Beacon trackedBeacon = null;
-        if (beacon.isMultiFrameBeacon() || beacon.getServiceUuid() != -1) {
-            trackedBeacon = trackGattBeacon(beacon);
-        }
-        else {
-            trackedBeacon = beacon;
-        }
-        return trackedBeacon;
-    }
+//    public synchronized Beacon track(BeaconService.ScanData scanData) {
+//        Beacon trackedBeacon = null;
+//        if (beacon.isMultiFrameBeacon() || beacon.getServiceUuid() != -1) {
+//            trackedBeacon = trackGattBeacon(beacon);
+//        }
+//        else {
+//            trackedBeacon = beacon;
+//        }
+//        return trackedBeacon;
+//    }
 
     // The following code is for dealing with merging data fields in beacons
     private Beacon trackGattBeacon(Beacon beacon) {

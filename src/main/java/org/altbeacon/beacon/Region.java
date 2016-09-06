@@ -3,7 +3,7 @@
  * http://www.radiusnetworks.com
  *
  * @author David G. Young
- *
+ * <p/>
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -11,9 +11,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p/>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p/>
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,12 +23,18 @@
  */
 package org.altbeacon.beacon;
 
+import android.bluetooth.BluetoothDevice;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import org.altbeacon.beacon.service.BeaconService;
+
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -94,7 +100,7 @@ public class Region implements Parcelable, Serializable {
      * @param identifiers - list of identifiers for this region
      */
     public Region(String uniqueId, List<Identifier> identifiers) {
-       this(uniqueId, identifiers, null);
+        this(uniqueId, identifiers, null);
     }
 
     /**
@@ -174,30 +180,86 @@ public class Region implements Parcelable, Serializable {
     /**
      * Returns the mac address used to filter for beacons
      */
-    public String getBluetoothAddress() { return mBluetoothAddress; }
+    public String getBluetoothAddress() {
+        return mBluetoothAddress;
+    }
 
     /**
      * Checks to see if an Beacon object is included in the matching criteria of this Region
      * @param beacon the beacon to check to see if it is in the Region
      * @return true if is covered
      */
-    public boolean matchesBeacon(Beacon beacon) {
-        // All identifiers must match, or the corresponding region identifier must be null.
-        for (int i = mIdentifiers.size(); --i >= 0; ) {
-            final Identifier identifier = mIdentifiers.get(i);
-            Identifier beaconIdentifier = null;
-            if (i < beacon.mIdentifiers.size()) {
-                beaconIdentifier = beacon.getIdentifier(i);
-            }
-            if ((beaconIdentifier == null && identifier != null) ||
-                    (beaconIdentifier != null  && identifier != null && !identifier.equals(beaconIdentifier))) {
-                return false;
+    public boolean matchesBeacon(BeaconService.ScanData scanData) {
+        List<UUID> uuids = parseUuids(scanData.scanRecord);
+        boolean matches = true;
+        if (mIdentifiers != null) {
+            for (Identifier identifier : mIdentifiers) {
+                if (identifier != null) {
+                    matches = uuids.contains(identifier.toUuid());
+                }
             }
         }
-        if (mBluetoothAddress != null && !mBluetoothAddress.equalsIgnoreCase(beacon.mBluetoothAddress)) {
-            return false;
+
+        if (mBluetoothAddress != null) {
+            matches = scanData.device.getAddress().equals(mBluetoothAddress);
         }
-        return true;
+
+        return matches;
+
+//        // All identifiers must match, or the corresponding region identifier must be null.
+//        for (int i = mIdentifiers.size(); --i >= 0; ) {
+//            final Identifier identifier = mIdentifiers.get(i);
+//            Identifier beaconIdentifier = null;
+//            if (i < beacon.mIdentifiers.size()) {
+//                beaconIdentifier = beacon.getIdentifier(i);
+//            }
+//            if ((beaconIdentifier == null && identifier != null) ||
+//                    (beaconIdentifier != null  && identifier != null && !identifier.equals(beaconIdentifier))) {
+//                return false;
+//            }
+//        }
+//        if (mBluetoothAddress != null && !mBluetoothAddress.equalsIgnoreCase(beacon.mBluetoothAddress)) {
+//            return false;
+//        }
+//        return true;
+    }
+
+    private List<UUID> parseUuids(byte[] advertisedData) {
+        List<UUID> uuids = new ArrayList<>();
+
+        ByteBuffer buffer = ByteBuffer.wrap(advertisedData).order(ByteOrder.LITTLE_ENDIAN);
+        while (buffer.remaining() > 2) {
+            byte length = buffer.get();
+            if (length == 0) break;
+
+            byte type = buffer.get();
+            switch (type) {
+                case 0x02: // Partial list of 16-bit UUIDs
+                case 0x03: // Complete list of 16-bit UUIDs
+                    while (length >= 2) {
+                        uuids.add(UUID.fromString(String.format(
+                                "%08x-0000-1000-8000-00805f9b34fb", buffer.getShort())));
+                        length -= 2;
+                    }
+                    break;
+
+                case 0x06: // Partial list of 128-bit UUIDs
+                case 0x07: // Complete list of 128-bit UUIDs
+                    while (length >= 16) {
+                        long lsb = buffer.getLong();
+                        long msb = buffer.getLong();
+                        uuids.add(new UUID(msb, lsb));
+                        length -= 16;
+                    }
+                    break;
+
+                default:
+                    buffer.position(buffer.position() + length - 1);
+                    break;
+            }
+        }
+
+        return uuids;
     }
 
     @Override
@@ -208,40 +270,36 @@ public class Region implements Parcelable, Serializable {
     @Override
     public boolean equals(Object other) {
         if (other instanceof Region) {
-            return ((Region)other).mUniqueId.equals(this.mUniqueId);
+            return ((Region) other).mUniqueId.equals(this.mUniqueId);
         }
         return false;
     }
 
     public boolean hasSameIdentifiers(Region region) {
         if (region.mIdentifiers.size() == this.mIdentifiers.size()) {
-            for (int i = 0 ; i < region.mIdentifiers.size(); i++) {
+            for (int i = 0; i < region.mIdentifiers.size(); i++) {
 
                 if (region.getIdentifier(i) == null && this.getIdentifier(i) != null) {
                     return false;
-                }
-                else if (region.getIdentifier(i) != null && this.getIdentifier(i) == null) {
+                } else if (region.getIdentifier(i) != null && this.getIdentifier(i) == null) {
                     return false;
-                }
-                else if (!(region.getIdentifier(i) == null && this.getIdentifier(i) == null)) {
+                } else if (!(region.getIdentifier(i) == null && this.getIdentifier(i) == null)) {
                     if (!region.getIdentifier(i).equals(this.getIdentifier(i))) {
                         return false;
                     }
                 }
             }
-        }
-        else {
+        } else {
             return false;
         }
         return true;
     }
 
 
-
     public String toString() {
         StringBuilder sb = new StringBuilder();
         int i = 1;
-        for (Identifier identifier: mIdentifiers) {
+        for (Identifier identifier : mIdentifiers) {
             if (i > 1) {
                 sb.append(" ");
             }
@@ -263,11 +321,10 @@ public class Region implements Parcelable, Serializable {
         out.writeString(mBluetoothAddress);
         out.writeInt(mIdentifiers.size());
 
-        for (Identifier identifier: mIdentifiers) {
+        for (Identifier identifier : mIdentifiers) {
             if (identifier != null) {
                 out.writeString(identifier.toString());
-            }
-            else {
+            } else {
                 out.writeString(null);
             }
         }
@@ -292,8 +349,8 @@ public class Region implements Parcelable, Serializable {
 
     private void validateMac(String mac) throws IllegalArgumentException {
         if (mac != null) {
-            if(!MAC_PATTERN.matcher(mac).matches()) {
-                throw new IllegalArgumentException("Invalid mac address: '"+mac+"' Must be 6 hex bytes separated by colons.");
+            if (!MAC_PATTERN.matcher(mac).matches()) {
+                throw new IllegalArgumentException("Invalid mac address: '" + mac + "' Must be 6 hex bytes separated by colons.");
             }
         }
     }

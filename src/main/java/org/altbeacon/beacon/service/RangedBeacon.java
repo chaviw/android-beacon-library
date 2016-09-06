@@ -18,10 +18,10 @@ public class RangedBeacon {
     private static long sampleExpirationMilliseconds = DEFAULT_SAMPLE_EXPIRATION_MILLISECONDS;
     private boolean mTracked = true;
     protected long lastTrackedTimeMillis = 0;
-    Beacon mBeacon;
+    BeaconService.ScanData mBeacon;
     protected RssiFilter filter = null;
 
-    public RangedBeacon(Beacon beacon) {
+    public RangedBeacon(BeaconService.ScanData beacon) {
         //set RSSI filter
         try {
             Constructor cons = BeaconManager.getRssiFilterImplClass().getConstructors()[0];
@@ -34,9 +34,9 @@ public class RangedBeacon {
         updateBeacon(beacon);
     }
 
-    public void updateBeacon(Beacon beacon) {
+    public void updateBeacon(BeaconService.ScanData beacon) {
         mBeacon = beacon;
-        addMeasurement(mBeacon.getRssi());
+        addMeasurement(mBeacon.rssi);
     }
 
     public boolean isTracked() {
@@ -47,7 +47,7 @@ public class RangedBeacon {
         mTracked = tracked;
     }
 
-    public Beacon getBeacon() {
+    public BeaconService.ScanData getBeacon() {
         return mBeacon;
     }
 

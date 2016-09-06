@@ -1,8 +1,8 @@
 package org.altbeacon.beacon.service;
 
 import android.content.Context;
+import android.util.Log;
 
-import org.altbeacon.beacon.Beacon;
 import org.altbeacon.beacon.Region;
 import org.altbeacon.beacon.logging.LogManager;
 
@@ -111,10 +111,11 @@ public class MonitoringStatus {
         }
     }
 
-    public synchronized void updateNewlyInsideInRegionsContaining(Beacon beacon) {
-        List<Region> matchingRegions = regionsMatchingTo(beacon);
+    public synchronized void updateNewlyInsideInRegionsContaining(BeaconService.ScanData scanData) {
+        List<Region> matchingRegions = regionsMatchingTo(scanData);
         boolean needsMonitoringStateSaving = false;
         for(Region region : matchingRegions) {
+            Log.d(TAG, "in region " + region);
             RegionMonitoringState state = getRegionsStateMap().get(region);
             if (state != null && state.markInside()) {
                 needsMonitoringStateSaving = true;
@@ -152,13 +153,13 @@ public class MonitoringStatus {
         }
     }
 
-    private List<Region> regionsMatchingTo(Beacon beacon) {
+    private List<Region> regionsMatchingTo(BeaconService.ScanData scanData) {
         List<Region> matched = new ArrayList<Region>();
         for (Region region : regions()) {
-            if (region.matchesBeacon(beacon)) {
+            if (region.matchesBeacon(scanData)) {
                 matched.add(region);
             } else {
-                LogManager.d(TAG, "This region (%s) does not match beacon: %s", region, beacon);
+                LogManager.d(TAG, "This region (%s) does not match beacon: %s", region, scanData);
             }
         }
         return matched;

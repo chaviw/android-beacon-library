@@ -39,6 +39,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
+import android.util.Log;
 
 import org.altbeacon.beacon.Beacon;
 import org.altbeacon.beacon.BeaconManager;
@@ -56,6 +57,7 @@ import org.altbeacon.bluetooth.BluetoothCrashResolver;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -349,7 +351,7 @@ public class BeaconService extends Service {
         public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
 
             NonBeaconLeScanCallback nonBeaconLeScanCallback = beaconManager.getNonBeaconLeScanCallback();
-
+            Log.d(TAG, "onLeScanCallback " + device.getName());
             try {
                 new ScanProcessor(nonBeaconLeScanCallback).executeOnExecutor(mExecutor,
                         new ScanData(device, rssi, scanRecord));
@@ -363,34 +365,34 @@ public class BeaconService extends Service {
             monitoringStatus.updateNewlyOutside();
             processRangeData();
             // If we want to use simulated scanning data, do it here.  This is used for testing in an emulator
-            if (simulatedScanData != null) {
-                // if simulatedScanData is provided, it will be seen every scan cycle.  *in addition* to anything actually seen in the air
-                // it will not be used if we are not in debug mode
-                LogManager.w(TAG, "Simulated scan data is deprecated and will be removed in a future release. Please use the new BeaconSimulator interface instead.");
-
-                if (0 != (getApplicationInfo().flags &= ApplicationInfo.FLAG_DEBUGGABLE)) {
-                    for (Beacon beacon : simulatedScanData) {
-                        processBeaconFromScan(beacon);
-                    }
-                } else {
-                    LogManager.w(TAG, "Simulated scan data provided, but ignored because we are not running in debug mode.  Please remove simulated scan data for production.");
-                }
-            }
-            if (BeaconManager.getBeaconSimulator() != null) {
-                // if simulatedScanData is provided, it will be seen every scan cycle.  *in addition* to anything actually seen in the air
-                // it will not be used if we are not in debug mode
-                if (BeaconManager.getBeaconSimulator().getBeacons() != null) {
-                    if (0 != (getApplicationInfo().flags &= ApplicationInfo.FLAG_DEBUGGABLE)) {
-                        for (Beacon beacon : BeaconManager.getBeaconSimulator().getBeacons()) {
-                            processBeaconFromScan(beacon);
-                        }
-                    } else {
-                        LogManager.w(TAG, "Beacon simulations provided, but ignored because we are not running in debug mode.  Please remove beacon simulations for production.");
-                    }
-                } else {
-                    LogManager.w(TAG, "getBeacons is returning null. No simulated beacons to report.");
-                }
-            }
+//            if (simulatedScanData != null) {
+//                // if simulatedScanData is provided, it will be seen every scan cycle.  *in addition* to anything actually seen in the air
+//                // it will not be used if we are not in debug mode
+//                LogManager.w(TAG, "Simulated scan data is deprecated and will be removed in a future release. Please use the new BeaconSimulator interface instead.");
+//
+//                if (0 != (getApplicationInfo().flags &= ApplicationInfo.FLAG_DEBUGGABLE)) {
+//                    for (Beacon beacon : simulatedScanData) {
+//                        processBeaconFromScan(beacon);
+//                    }
+//                } else {
+//                    LogManager.w(TAG, "Simulated scan data provided, but ignored because we are not running in debug mode.  Please remove simulated scan data for production.");
+//                }
+//            }
+//            if (BeaconManager.getBeaconSimulator() != null) {
+//                // if simulatedScanData is provided, it will be seen every scan cycle.  *in addition* to anything actually seen in the air
+//                // it will not be used if we are not in debug mode
+//                if (BeaconManager.getBeaconSimulator().getBeacons() != null) {
+//                    if (0 != (getApplicationInfo().flags &= ApplicationInfo.FLAG_DEBUGGABLE)) {
+//                        for (Beacon beacon : BeaconManager.getBeaconSimulator().getBeacons()) {
+//                            processBeaconFromScan(beacon);
+//                        }
+//                    } else {
+//                        LogManager.w(TAG, "Beacon simulations provided, but ignored because we are not running in debug mode.  Please remove beacon simulations for production.");
+//                    }
+//                } else {
+//                    LogManager.w(TAG, "getBeacons is returning null. No simulated beacons to report.");
+//                }
+//            }
         }
     };
 
@@ -404,56 +406,71 @@ public class BeaconService extends Service {
         }
     }
 
-    private void processBeaconFromScan(Beacon beacon) {
-        if (Stats.getInstance().isEnabled()) {
-            Stats.getInstance().log(beacon);
-        }
+    private void processBeaconFromScan(ScanData scanData) {
         if (LogManager.isVerboseLoggingEnabled()) {
             LogManager.d(TAG,
-                    "beacon detected : %s", beacon.toString());
+                    "beacon detected : %s", scanData.toString());
         }
 
-        beacon = mExtraDataBeaconTracker.track(beacon);
         // If this is a Gatt beacon that should be ignored, it will be set to null as a result of
         // the above
-        if (beacon == null) {
+        if (scanData.device == null) {
             if (LogManager.isVerboseLoggingEnabled()) {
                 LogManager.d(TAG,
                         "not processing detections for GATT extra data beacon");
             }
         } else {
 
-            monitoringStatus.updateNewlyInsideInRegionsContaining(beacon);
+            monitoringStatus.updateNewlyInsideInRegionsContaining(scanData);
 
             List<Region> matchedRegions = null;
             Iterator<Region> matchedRegionIterator;
             LogManager.d(TAG, "looking for ranging region matches for this beacon");
             synchronized (rangedRegionState) {
-                matchedRegions = matchingRegions(beacon, rangedRegionState.keySet());
+                matchedRegions = matchingRegions(scanData, rangedRegionState.keySet());
                 matchedRegionIterator = matchedRegions.iterator();
                 while (matchedRegionIterator.hasNext()) {
                     Region region = matchedRegionIterator.next();
                     LogManager.d(TAG, "matches ranging region: %s", region);
                     RangeState rangeState = rangedRegionState.get(region);
                     if (rangeState != null) {
-                        rangeState.addBeacon(beacon);
+                        rangeState.addBeacon(scanData);
                     }
                 }
             }
         }
     }
 
-
-    private class ScanData {
+    public static class ScanData {
         public ScanData(BluetoothDevice device, int rssi, byte[] scanRecord) {
             this.device = device;
             this.rssi = rssi;
             this.scanRecord = scanRecord;
         }
 
-        int rssi;
-        BluetoothDevice device;
-        byte[] scanRecord;
+        public final int rssi;
+        public final BluetoothDevice device;
+        public final byte[] scanRecord;
+        private double mRunningAverageRssi;
+        private Double mDistance;
+        /**
+         * Sets the running average rssi for use in distance calculations
+         * @param rssi the running average rssi
+         */
+        public void setRunningAverageRssi(double rssi) {
+            mRunningAverageRssi = rssi;
+            mDistance = null; // force calculation of accuracy and proximity next time they are requested
+        }
+
+
+        @Override
+        public String toString() {
+            return "ScanData{" +
+                    "rssi=" + rssi +
+                    ", device=" + device +
+                    ", scanRecord=" + Arrays.toString(scanRecord) +
+                    '}';
+        }
     }
 
     private class ScanProcessor extends AsyncTask<ScanData, Void, Void> {
@@ -469,24 +486,8 @@ public class BeaconService extends Service {
         protected Void doInBackground(ScanData... params) {
             ScanData scanData = params[0];
             Beacon beacon = null;
-
-            for (BeaconParser parser : BeaconService.this.beaconParsers) {
-                beacon = parser.fromScanData(scanData.scanRecord,
-                        scanData.rssi, scanData.device);
-
-                if (beacon != null) {
-                    break;
-                }
-            }
-            if (beacon != null) {
-                mDetectionTracker.recordDetection();
-                trackedBeaconsPacketCount++;
-                processBeaconFromScan(beacon);
-            } else {
-                if (mNonBeaconLeScanCallback != null) {
-                    mNonBeaconLeScanCallback.onNonBeaconLeScan(scanData.device, scanData.rssi, scanData.scanRecord);
-                }
-            }
+            Log.d(TAG, "doInBackground " + scanData);
+            processBeaconFromScan(scanData);
             return null;
         }
 
@@ -503,13 +504,13 @@ public class BeaconService extends Service {
         }
     }
 
-    private List<Region> matchingRegions(Beacon beacon, Collection<Region> regions) {
+    private List<Region> matchingRegions(ScanData scanData, Collection<Region> regions) {
         List<Region> matched = new ArrayList<Region>();
         for (Region region : regions) {
-            if (region.matchesBeacon(beacon)) {
+            if (region.matchesBeacon(scanData)) {
                 matched.add(region);
             } else {
-                LogManager.d(TAG, "This region (%s) does not match beacon: %s", region, beacon);
+                LogManager.d(TAG, "This region (%s) does not match beacon: %s", region, scanData);
             }
         }
         return matched;

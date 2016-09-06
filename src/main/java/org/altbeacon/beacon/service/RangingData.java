@@ -36,17 +36,17 @@ import android.os.Parcelable;
 
 public class RangingData implements Parcelable {
     private static final String TAG = "RangingData";
-    private final Collection<Beacon> beacons;
+    private final Collection<BeaconService.ScanData> beacons;
     private final Region region;
 
-    public RangingData (Collection<Beacon> beacons, Region region) {
+    public RangingData (Collection<BeaconService.ScanData> beacons, Region region) {
         synchronized (beacons) {
             this.beacons =  beacons;
         }
         this.region = region;
     }
 
-    public Collection<Beacon> getBeacons() {
+    public Collection<BeaconService.ScanData> getBeacons() {
         return beacons;
     }
     public Region getRegion() {
@@ -79,9 +79,9 @@ public class RangingData implements Parcelable {
     private RangingData(Parcel in) {
         LogManager.d(TAG, "parsing RangingData");
         Parcelable[] parcelables  = in.readParcelableArray(this.getClass().getClassLoader());
-        beacons = new ArrayList<Beacon>(parcelables.length);
+        beacons = new ArrayList<>(parcelables.length);
         for (int i = 0; i < parcelables.length; i++) {
-            beacons.add((Beacon)parcelables[i]);
+            beacons.add((BeaconService.ScanData) parcelables[i]);
         }
         region = in.readParcelable(this.getClass().getClassLoader());
     }

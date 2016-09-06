@@ -34,7 +34,7 @@ import java.util.Map;
 public class RangeState {
     private static final String TAG = "RangeState";
     private final Callback mCallback;
-    private Map<Beacon,RangedBeacon> mRangedBeacons = new HashMap<Beacon,RangedBeacon>();
+    private Map<BeaconService.ScanData,RangedBeacon> mRangedBeacons = new HashMap<>();
     private static boolean UseTrackingCache = false;
 
     public RangeState(Callback c) {
@@ -45,26 +45,26 @@ public class RangeState {
         return mCallback;
     }
 
-    public void addBeacon(Beacon beacon) {
-        if (mRangedBeacons.containsKey(beacon)) {
-            RangedBeacon rangedBeacon = mRangedBeacons.get(beacon);
-            LogManager.d(TAG, "adding %s to existing range for: %s", beacon, rangedBeacon);
-            rangedBeacon.updateBeacon(beacon);
+    public void addBeacon(BeaconService.ScanData scanData) {
+        if (mRangedBeacons.containsKey(scanData)) {
+            RangedBeacon rangedBeacon = mRangedBeacons.get(scanData);
+            LogManager.d(TAG, "adding %s to existing range for: %s", scanData, rangedBeacon);
+            rangedBeacon.updateBeacon(scanData);
         }
         else {
-            LogManager.d(TAG, "adding %s to new rangedBeacon", beacon);
-            mRangedBeacons.put(beacon, new RangedBeacon(beacon));
+            LogManager.d(TAG, "adding %s to new rangedBeacon", scanData);
+            mRangedBeacons.put(scanData, new RangedBeacon(scanData));
         }
     }
 
     // returns a list of beacons that are tracked, and then removes any from the list that should not
     // be there for the next cycle
-    public synchronized Collection<Beacon> finalizeBeacons() {
-        Map<Beacon,RangedBeacon> newRangedBeacons = new HashMap<Beacon,RangedBeacon>();
-        ArrayList<Beacon> finalizedBeacons = new ArrayList<Beacon>();
+    public synchronized Collection<BeaconService.ScanData> finalizeBeacons() {
+        Map<BeaconService.ScanData,RangedBeacon> newRangedBeacons = new HashMap<>();
+        ArrayList<BeaconService.ScanData> finalizedBeacons = new ArrayList<>();
 
         synchronized (mRangedBeacons) {
-            for (Beacon beacon : mRangedBeacons.keySet()) {
+            for (BeaconService.ScanData beacon : mRangedBeacons.keySet()) {
                 RangedBeacon rangedBeacon = mRangedBeacons.get(beacon);
                 if (rangedBeacon.isTracked()) {
                     rangedBeacon.commitMeasurements(); // calculates accuracy
